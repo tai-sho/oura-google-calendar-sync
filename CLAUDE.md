@@ -76,6 +76,16 @@ npm run watch  # 変更を監視して自動push
 | 日次ストレス | `v2/usercollection/daily_stress` |
 | 日次アクティビティ | `v2/usercollection/daily_activity` |
 | 日次SpO2 | `v2/usercollection/daily_spo2` |
+| 推奨睡眠時間 | `v2/usercollection/sleep_time` |
+| 休息モード | `v2/usercollection/rest_mode_period` |
+
+### Oura会員限定エンドポイント（401エラー）
+
+以下のエンドポイントはOura会員（有料サブスクリプション）が必要：
+
+- `v2/usercollection/daily_cardiovascular_age` - 心血管年齢
+- `v2/usercollection/vO2_max` - VO2 Max
+- `v2/usercollection/daily_resilience` - レジリエンス
 
 ## OAuth2スコープ
 
