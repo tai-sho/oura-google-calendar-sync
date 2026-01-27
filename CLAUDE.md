@@ -1,42 +1,42 @@
 # CLAUDE.md
 
-## プロジェクト概要
+## Project Overview
 
-Oura Ring API v2からデータを取得し、Google Calendarに同期するGoogle Apps Script (GAS)。
+Google Apps Script (GAS) that fetches data from Oura Ring API v2 and syncs it to Google Calendar.
 
-## 技術スタック
+## Tech Stack
 
 - Google Apps Script (GAS)
-- clasp - GASのローカル開発ツール
-- OAuth2 for Apps Script ライブラリ (v43)
+- clasp - Local development tool for GAS
+- OAuth2 for Apps Script library (v43)
 
-## 開発ワークフロー
+## Development Workflow
 
 ```bash
-npm run push   # ローカル → GASにデプロイ
-npm run pull   # GAS → ローカルに取得
-npm run watch  # 変更を監視して自動push
+npm run push   # Deploy local → GAS
+npm run pull   # Pull GAS → local
+npm run watch  # Watch and auto-push changes
 ```
 
-テストはGASエディタで関数を手動実行。
+Testing is done by manually running functions in the GAS editor.
 
-## ファイル構成
+## File Structure
 
-| ファイル | 役割 |
-|---------|------|
-| main.gs | エントリーポイント、OAuth2認証関数、トリガー設定 |
-| config.gs | 設定管理、定数定義 |
-| ouraApi.gs | Oura APIクライアント |
-| calendarService.gs | Google Calendar操作、重複検出 |
-| syncService.gs | 同期ロジック |
-| formatters.gs | イベントタイトル・説明のフォーマット |
-| utils.gs | 共通ユーティリティ |
+| File | Purpose |
+|------|---------|
+| main.gs | Entry point, OAuth2 auth functions, trigger setup |
+| config.gs | Configuration management, constants |
+| ouraApi.gs | Oura API client |
+| calendarService.gs | Google Calendar operations, duplicate detection |
+| syncService.gs | Sync logic |
+| formatters.gs | Event title and description formatting |
+| utils.gs | Common utilities |
 
-## 重要な注意点
+## Important Notes
 
-### OAuth2ライブラリのバージョン
+### OAuth2 Library Version
 
-**必ずバージョン43を使用すること。**
+**Always use version 43.**
 
 ```json
 {
@@ -46,66 +46,66 @@ npm run watch  # 変更を監視して自動push
 }
 ```
 
-バージョン46などの新しいバージョンでは`NOT_FOUND`エラーが発生する。
+Newer versions like 46 will cause `NOT_FOUND` errors.
 
-### Oura API認証方式の変更
+### Oura API Authentication Changes
 
-- **Personal Access Token (PAT) は2025年12月に非推奨**
-- OAuth2認証を使用すること
-- Oura Developer Portalも変更: https://developer.ouraring.com/applications
-  - 旧URL `https://cloud.ouraring.com/oauth/applications` は無効
+- **Personal Access Token (PAT) is deprecated as of December 2025**
+- Use OAuth2 authentication
+- Oura Developer Portal has changed: https://developer.ouraring.com/applications
+  - Old URL `https://cloud.ouraring.com/oauth/applications` is no longer valid
 
-### SpO2データについて
+### SpO2 Data
 
-- PATでは取得できなかった（401エラー）
-- OAuth2では`spo2`スコープを含めることで取得可能
-- ただし、ユーザーの契約状況やリングのモデルによっては取得できない場合もある
+- Could not be retrieved with PAT (401 error)
+- With OAuth2, can be retrieved by including the `spo2` scope
+- However, may not be available depending on user's subscription or ring model
 
 ## Oura API v2
 
-ドキュメント: https://cloud.ouraring.com/v2/docs
+Documentation: https://cloud.ouraring.com/v2/docs
 
-### エンドポイント
+### Endpoints
 
-| データ | エンドポイント |
-|--------|---------------|
-| 睡眠詳細 | `v2/usercollection/sleep` |
-| 日次睡眠スコア | `v2/usercollection/daily_sleep` |
-| ワークアウト | `v2/usercollection/workout` |
-| 日次Readiness | `v2/usercollection/daily_readiness` |
-| 日次ストレス | `v2/usercollection/daily_stress` |
-| 日次アクティビティ | `v2/usercollection/daily_activity` |
-| 日次SpO2 | `v2/usercollection/daily_spo2` |
-| 推奨睡眠時間 | `v2/usercollection/sleep_time` |
-| 休息モード | `v2/usercollection/rest_mode_period` |
+| Data | Endpoint |
+|------|----------|
+| Sleep Details | `v2/usercollection/sleep` |
+| Daily Sleep Score | `v2/usercollection/daily_sleep` |
+| Workout | `v2/usercollection/workout` |
+| Daily Readiness | `v2/usercollection/daily_readiness` |
+| Daily Stress | `v2/usercollection/daily_stress` |
+| Daily Activity | `v2/usercollection/daily_activity` |
+| Daily SpO2 | `v2/usercollection/daily_spo2` |
+| Sleep Time Recommendation | `v2/usercollection/sleep_time` |
+| Rest Mode | `v2/usercollection/rest_mode_period` |
 
-### Oura会員限定エンドポイント（401エラー）
+### Oura Membership Required Endpoints (401 Error)
 
-以下のエンドポイントはOura会員（有料サブスクリプション）が必要：
+The following endpoints require an Oura membership (paid subscription):
 
-- `v2/usercollection/daily_cardiovascular_age` - 心血管年齢
+- `v2/usercollection/daily_cardiovascular_age` - Cardiovascular Age
 - `v2/usercollection/vO2_max` - VO2 Max
-- `v2/usercollection/daily_resilience` - レジリエンス
+- `v2/usercollection/daily_resilience` - Resilience
 
-## OAuth2スコープ
+## OAuth2 Scopes
 
-全8種: `email personal daily heartrate workout tag session spo2`
+All 8 scopes: `email personal daily heartrate workout tag session spo2`
 
 ## Script Properties
 
-| キー | 必須 | 説明 |
-|------|------|------|
+| Key | Required | Description |
+|-----|----------|-------------|
 | OURA_CLIENT_ID | Yes | OAuth Client ID |
 | OURA_CLIENT_SECRET | Yes | OAuth Client Secret |
-| CALENDAR_ID | Yes | 同期先カレンダーID |
-| SYNC_DAYS | No | 同期日数（デフォルト: 7） |
+| CALENDAR_ID | Yes | Target Google Calendar ID |
+| SYNC_DAYS | No | Number of days to sync (default: 7) |
 
-## 修正時の注意
+## Modification Guidelines
 
-機能追加や変更を行った際は、必ず**README.md**も併せて更新すること。
+When adding features or making changes, always update **README.md** as well.
 
-更新が必要な箇所:
-- Features セクション（機能一覧）
-- Calendar Event Examples セクション（イベント例）
-- Manual Sync セクション（実行可能な関数一覧）
-- Troubleshooting セクション（必要に応じて）
+Sections that may need updates:
+- Features section (feature list)
+- Calendar Event Examples section (event examples)
+- Manual Sync section (available functions)
+- Troubleshooting section (if applicable)
