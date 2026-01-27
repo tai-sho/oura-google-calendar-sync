@@ -8,10 +8,11 @@
 class SyncService {
   /**
    * @param {Object} config - Configuration object
+   * @param {OAuth2.Service} oauthService - OAuth2 service for Oura
    */
-  constructor(config) {
+  constructor(config, oauthService) {
     this.config = config;
-    this.ouraClient = new OuraApiClient(config.ouraAccessToken, config.ouraApiBaseUrl);
+    this.ouraClient = new OuraApiClient(oauthService, config.ouraApiBaseUrl);
     this.calendarService = new CalendarService(config.calendarId);
   }
 
@@ -137,21 +138,36 @@ class SyncService {
       const readinessData = this.ouraClient.getDailyReadiness(startDate, endDate);
       const stressData = this.ouraClient.getDailyStress(startDate, endDate);
       const dailySleepData = this.ouraClient.getDailySleep(startDate, endDate);
+      const activityData = this.ouraClient.getDailyActivity(startDate, endDate);
+
+      // SpO2 may not be available for all users (requires specific scope or subscription)
+      let spo2Data = [];
+      try {
+        spo2Data = this.ouraClient.getDailySpo2(startDate, endDate);
+      } catch (e) {
+        logInfo('SpO2 data not available: ' + e.message);
+      }
 
       // Index by day
       const readinessByDay = {};
       const stressByDay = {};
       const dailySleepByDay = {};
+      const activityByDay = {};
+      const spo2ByDay = {};
 
       for (const r of readinessData) readinessByDay[r.day] = r;
       for (const s of stressData) stressByDay[s.day] = s;
       for (const ds of dailySleepData) dailySleepByDay[ds.day] = ds;
+      for (const a of activityData) activityByDay[a.day] = a;
+      for (const sp of spo2Data) spo2ByDay[sp.day] = sp;
 
       // Collect all unique days
       const allDays = new Set([
         ...readinessData.map(r => r.day),
         ...stressData.map(s => s.day),
-        ...dailySleepData.map(ds => ds.day)
+        ...dailySleepData.map(ds => ds.day),
+        ...activityData.map(a => a.day),
+        ...spo2Data.map(sp => sp.day)
       ]);
 
       for (const day of allDays) {
@@ -159,11 +175,13 @@ class SyncService {
           const readiness = readinessByDay[day];
           const stress = stressByDay[day];
           const dailySleep = dailySleepByDay[day];
+          const activity = activityByDay[day];
+          const spo2 = spo2ByDay[day];
 
           // Skip if no data
-          if (!readiness && !stress && !dailySleep) continue;
+          if (!readiness && !stress && !dailySleep && !activity && !spo2) continue;
 
-          const formatted = formatDailyScoreEvent(readiness, stress, dailySleep);
+          const formatted = formatDailyScoreEvent(readiness, stress, dailySleep, activity, spo2);
           const ouraId = `daily_score_${day}`;
           const eventDate = new Date(day + 'T00:00:00');
 

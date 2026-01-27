@@ -3,7 +3,8 @@
  */
 
 const CONFIG_KEYS = {
-  OURA_ACCESS_TOKEN: 'OURA_ACCESS_TOKEN',
+  OURA_CLIENT_ID: 'OURA_CLIENT_ID',
+  OURA_CLIENT_SECRET: 'OURA_CLIENT_SECRET',
   CALENDAR_ID: 'CALENDAR_ID',
   SYNC_DAYS: 'SYNC_DAYS'
 };
@@ -13,6 +14,12 @@ const DEFAULTS = {
   OURA_API_BASE_URL: 'https://api.ouraring.com'
 };
 
+const OURA_OAUTH = {
+  AUTHORIZATION_URL: 'https://cloud.ouraring.com/oauth/authorize',
+  TOKEN_URL: 'https://api.ouraring.com/oauth/token',
+  SCOPES: ['email', 'personal', 'daily', 'heartrate', 'workout', 'tag', 'session', 'spo2']
+};
+
 /**
  * Get all configuration values
  * @returns {Object} Configuration object
@@ -20,7 +27,8 @@ const DEFAULTS = {
 function getConfig() {
   const props = PropertiesService.getScriptProperties();
   return {
-    ouraAccessToken: props.getProperty(CONFIG_KEYS.OURA_ACCESS_TOKEN),
+    ouraClientId: props.getProperty(CONFIG_KEYS.OURA_CLIENT_ID),
+    ouraClientSecret: props.getProperty(CONFIG_KEYS.OURA_CLIENT_SECRET),
     calendarId: props.getProperty(CONFIG_KEYS.CALENDAR_ID),
     syncDays: parseInt(props.getProperty(CONFIG_KEYS.SYNC_DAYS)) || DEFAULTS.SYNC_DAYS,
     ouraApiBaseUrl: DEFAULTS.OURA_API_BASE_URL
@@ -38,15 +46,19 @@ function setConfig(key, value) {
 }
 
 /**
- * Validate configuration
+ * Validate configuration for OAuth2
  * @param {Object} config - Configuration object
  * @throws {Error} If required configuration is missing
  */
 function validateConfig(config) {
   const errors = [];
 
-  if (!config.ouraAccessToken) {
-    errors.push('OURA_ACCESS_TOKEN is not set');
+  if (!config.ouraClientId) {
+    errors.push('OURA_CLIENT_ID is not set');
+  }
+
+  if (!config.ouraClientSecret) {
+    errors.push('OURA_CLIENT_SECRET is not set');
   }
 
   if (!config.calendarId) {

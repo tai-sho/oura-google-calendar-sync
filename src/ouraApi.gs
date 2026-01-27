@@ -7,11 +7,11 @@
  */
 class OuraApiClient {
   /**
-   * @param {string} accessToken - Oura Personal Access Token
+   * @param {OAuth2.Service} oauthService - OAuth2 service for Oura
    * @param {string} baseUrl - API base URL
    */
-  constructor(accessToken, baseUrl) {
-    this.accessToken = accessToken;
+  constructor(oauthService, baseUrl) {
+    this.oauthService = oauthService;
     this.baseUrl = baseUrl || DEFAULTS.OURA_API_BASE_URL;
   }
 
@@ -66,6 +66,26 @@ class OuraApiClient {
   }
 
   /**
+   * Get daily activity data
+   * @param {string} startDate - Start date (YYYY-MM-DD)
+   * @param {string} endDate - End date (YYYY-MM-DD)
+   * @returns {Array} Daily activity data array
+   */
+  getDailyActivity(startDate, endDate) {
+    return this._fetch('v2/usercollection/daily_activity', { start_date: startDate, end_date: endDate });
+  }
+
+  /**
+   * Get daily SpO2 data
+   * @param {string} startDate - Start date (YYYY-MM-DD)
+   * @param {string} endDate - End date (YYYY-MM-DD)
+   * @returns {Array} Daily SpO2 data array
+   */
+  getDailySpo2(startDate, endDate) {
+    return this._fetch('v2/usercollection/daily_spo2', { start_date: startDate, end_date: endDate });
+  }
+
+  /**
    * Internal fetch method
    * @param {string} endpoint - API endpoint
    * @param {Object} params - Query parameters
@@ -74,10 +94,12 @@ class OuraApiClient {
    */
   _fetch(endpoint, params) {
     const url = this._buildUrl(endpoint, params);
+    const accessToken = this.oauthService.getAccessToken();
+
     const options = {
       method: 'get',
       headers: {
-        'Authorization': `Bearer ${this.accessToken}`
+        'Authorization': `Bearer ${accessToken}`
       },
       muteHttpExceptions: true
     };
@@ -87,7 +109,7 @@ class OuraApiClient {
     const responseText = response.getContentText();
 
     if (statusCode === 401) {
-      throw new Error('Oura API authentication failed. Please check your access token.');
+      throw new Error('Oura API authentication failed. Please re-authorize using authorizeOura().');
     }
 
     if (statusCode === 429) {

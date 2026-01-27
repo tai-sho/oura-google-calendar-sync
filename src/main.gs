@@ -3,6 +3,97 @@
  * Sync Oura Ring data to Google Calendar
  */
 
+// ============================================
+// OAuth2 Authentication Functions
+// ============================================
+
+/**
+ * Get OAuth2 service for Oura API
+ * @returns {OAuth2.Service} OAuth2 service
+ */
+function getOuraService() {
+  const config = getConfig();
+
+  return OAuth2.createService('oura')
+    .setAuthorizationBaseUrl(OURA_OAUTH.AUTHORIZATION_URL)
+    .setTokenUrl(OURA_OAUTH.TOKEN_URL)
+    .setClientId(config.ouraClientId)
+    .setClientSecret(config.ouraClientSecret)
+    .setCallbackFunction('authCallback')
+    .setPropertyStore(PropertiesService.getUserProperties())
+    .setScope(OURA_OAUTH.SCOPES.join(' '));
+}
+
+/**
+ * Start OAuth2 authorization flow
+ * Run this function first to get the authorization URL
+ */
+function authorizeOura() {
+  const config = getConfig();
+
+  if (!config.ouraClientId || !config.ouraClientSecret) {
+    logError('authorizeOura', new Error('OURA_CLIENT_ID and OURA_CLIENT_SECRET must be set in Script Properties'));
+    return;
+  }
+
+  const service = getOuraService();
+
+  if (service.hasAccess()) {
+    logInfo('Already authorized. Use logoutOura() to reset.');
+    return;
+  }
+
+  const authorizationUrl = service.getAuthorizationUrl();
+  logInfo('Open the following URL to authorize:\n' + authorizationUrl);
+}
+
+/**
+ * OAuth2 callback handler
+ * This function is called by Oura after user authorization
+ * @param {Object} request - The callback request
+ * @returns {HtmlOutput} HTML output
+ */
+function authCallback(request) {
+  const service = getOuraService();
+  const authorized = service.handleCallback(request);
+
+  if (authorized) {
+    return HtmlService.createHtmlOutput('Authorization successful! You can close this tab.');
+  } else {
+    return HtmlService.createHtmlOutput('Authorization denied. Please try again.');
+  }
+}
+
+/**
+ * Check if Oura is authorized
+ * @returns {boolean} True if authorized
+ */
+function checkOuraAuth() {
+  const service = getOuraService();
+  const hasAccess = service.hasAccess();
+
+  if (hasAccess) {
+    logInfo('Oura is authorized.');
+  } else {
+    logInfo('Oura is not authorized. Run authorizeOura() to start authorization.');
+  }
+
+  return hasAccess;
+}
+
+/**
+ * Logout from Oura (reset OAuth2 tokens)
+ */
+function logoutOura() {
+  const service = getOuraService();
+  service.reset();
+  logInfo('Oura authorization has been reset. Run authorizeOura() to re-authorize.');
+}
+
+// ============================================
+// Sync Functions
+// ============================================
+
 /**
  * Main entry point - sync all Oura data to Google Calendar
  * @returns {Object} Sync results for each data type
@@ -14,7 +105,13 @@ function syncOuraToCalendar() {
     const config = getConfig();
     validateConfig(config);
 
-    const syncService = new SyncService(config);
+    // Check OAuth2 authorization
+    const service = getOuraService();
+    if (!service.hasAccess()) {
+      throw new Error('Not authorized. Run authorizeOura() first.');
+    }
+
+    const syncService = new SyncService(config, service);
 
     const results = {
       sleep: { created: 0, updated: 0, skipped: 0, errors: 0 },
@@ -71,7 +168,12 @@ function syncSleep() {
     const config = getConfig();
     validateConfig(config);
 
-    const syncService = new SyncService(config);
+    const service = getOuraService();
+    if (!service.hasAccess()) {
+      throw new Error('Not authorized. Run authorizeOura() first.');
+    }
+
+    const syncService = new SyncService(config, service);
     const results = syncService.syncSleepData();
 
     logInfo(`Sleep sync complete: ${JSON.stringify(results)}`);
@@ -93,7 +195,12 @@ function syncWorkouts() {
     const config = getConfig();
     validateConfig(config);
 
-    const syncService = new SyncService(config);
+    const service = getOuraService();
+    if (!service.hasAccess()) {
+      throw new Error('Not authorized. Run authorizeOura() first.');
+    }
+
+    const syncService = new SyncService(config, service);
     const results = syncService.syncWorkoutData();
 
     logInfo(`Workout sync complete: ${JSON.stringify(results)}`);
@@ -115,7 +222,12 @@ function syncDailyScores() {
     const config = getConfig();
     validateConfig(config);
 
-    const syncService = new SyncService(config);
+    const service = getOuraService();
+    if (!service.hasAccess()) {
+      throw new Error('Not authorized. Run authorizeOura() first.');
+    }
+
+    const syncService = new SyncService(config, service);
     const results = syncService.syncDailyScoresData();
 
     logInfo(`Daily scores sync complete: ${JSON.stringify(results)}`);
@@ -125,6 +237,10 @@ function syncDailyScores() {
     throw e;
   }
 }
+
+// ============================================
+// Trigger Management
+// ============================================
 
 /**
  * Setup daily trigger for automatic sync
@@ -157,19 +273,24 @@ function removeTriggers() {
   logInfo('All syncOuraToCalendar triggers removed');
 }
 
+// ============================================
+// Test Functions
+// ============================================
+
 /**
  * Test Oura API connection
- * Useful for verifying token is working
+ * Useful for verifying OAuth2 is working
  */
 function testOuraConnection() {
   try {
     const config = getConfig();
 
-    if (!config.ouraAccessToken) {
-      throw new Error('OURA_ACCESS_TOKEN is not set');
+    const service = getOuraService();
+    if (!service.hasAccess()) {
+      throw new Error('Not authorized. Run authorizeOura() first.');
     }
 
-    const ouraClient = new OuraApiClient(config.ouraAccessToken, config.ouraApiBaseUrl);
+    const ouraClient = new OuraApiClient(service, config.ouraApiBaseUrl);
     const today = formatDateForApi(new Date());
     const yesterday = formatDateForApi(new Date(Date.now() - 86400000));
 

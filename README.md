@@ -8,7 +8,7 @@ Sync Oura Ring data to Google Calendar using Google Apps Script.
 
 - **Sleep data** - Duration, start/end time, sleep stages, vitals, scores
 - **Workout data** - Activity type, duration, calories, distance
-- **Daily scores** - Readiness, Sleep Score, Stress (combined in one all-day event)
+- **Daily scores** - Readiness, Sleep Score, Stress, Activity, SpO2 (combined in one all-day event)
 
 ## Calendar Event Examples
 
@@ -69,11 +69,21 @@ cp .clasp.json.example .clasp.json
 npm run push
 ```
 
-5. Open GAS editor and configure Script Properties
+5. Open GAS editor
 
 ```bash
 npm run open
 ```
+
+### Create Oura OAuth Application
+
+1. Go to [Oura Developer Portal](https://cloud.ouraring.com/oauth/applications)
+2. Click "New Application"
+3. Fill in the form:
+   - **App Name**: Any name (e.g., "My Calendar Sync")
+   - **Redirect URI**: `https://script.google.com/macros/d/{SCRIPT_ID}/usercallback`
+     - Replace `{SCRIPT_ID}` with your GAS script ID (found in `.clasp.json`)
+4. Copy the **Client ID** and **Client Secret**
 
 ### Configure Script Properties
 
@@ -81,20 +91,23 @@ In GAS editor: **Project Settings** > **Script Properties**
 
 | Property | Required | Description |
 |----------|----------|-------------|
-| `OURA_ACCESS_TOKEN` | Yes | Your Oura personal access token |
+| `OURA_CLIENT_ID` | Yes | Your Oura OAuth Client ID |
+| `OURA_CLIENT_SECRET` | Yes | Your Oura OAuth Client Secret |
 | `CALENDAR_ID` | Yes | Target Google Calendar ID |
 | `SYNC_DAYS` | No | Number of days to sync (default: 7) |
-
-### Get Oura Access Token
-
-1. Go to [Oura Cloud Personal Access Tokens](https://cloud.ouraring.com/personal-access-tokens)
-2. Create a new personal access token
-3. Copy the token and save it to Script Properties
 
 ### Get Calendar ID
 
 - For primary calendar: Use your email address (e.g., `your.email@gmail.com`)
 - For other calendars: Open Google Calendar > Calendar Settings > Calendar ID
+
+### Authorize Oura
+
+1. In GAS editor, run `authorizeOura()`
+2. Check the execution log for the authorization URL
+3. Open the URL in your browser
+4. Log in to Oura and click "Allow"
+5. You should see "Authorization successful!"
 
 ## Usage
 
@@ -109,8 +122,14 @@ In GAS editor, run any of these functions:
 
 ### Test Connection
 
-- `testOuraConnection()` - Verify Oura API token is working
+- `testOuraConnection()` - Verify Oura OAuth is working
 - `testCalendarConnection()` - Verify Calendar ID is correct
+- `checkOuraAuth()` - Check authorization status
+
+### OAuth Management
+
+- `authorizeOura()` - Start authorization flow
+- `logoutOura()` - Reset authorization (re-authorize required)
 
 ### Setup Automatic Sync
 
@@ -133,7 +152,7 @@ npm run logs   # View execution logs
 ```
 src/
 ├── appsscript.json      # GAS manifest
-├── main.gs              # Entry points and triggers
+├── main.gs              # Entry points, OAuth, and triggers
 ├── config.gs            # Configuration management
 ├── ouraApi.gs           # Oura API client
 ├── calendarService.gs   # Google Calendar operations
@@ -144,14 +163,20 @@ src/
 
 ## Troubleshooting
 
-### "OURA_ACCESS_TOKEN is not set"
-Set the `OURA_ACCESS_TOKEN` in Script Properties.
+### "OURA_CLIENT_ID is not set"
+Set the `OURA_CLIENT_ID` and `OURA_CLIENT_SECRET` in Script Properties.
+
+### "Not authorized. Run authorizeOura() first."
+Run `authorizeOura()` and complete the authorization flow.
 
 ### "Calendar not found"
 Check that the `CALENDAR_ID` is correct. For primary calendar, use your email address.
 
 ### "Oura API authentication failed"
-Your access token may be invalid or expired. Create a new token at Oura Cloud.
+Your OAuth token may have expired. Run `logoutOura()` then `authorizeOura()` to re-authorize.
+
+### SpO2 data not showing
+SpO2 data requires an active Oura membership and may not be available for all users.
 
 ## License
 

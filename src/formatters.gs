@@ -112,9 +112,11 @@ function formatWorkoutEvent(workout) {
  * @param {Object} readiness - Daily readiness data (optional)
  * @param {Object} stress - Daily stress data (optional)
  * @param {Object} dailySleep - Daily sleep data (optional)
+ * @param {Object} activity - Daily activity data (optional)
+ * @param {Object} spo2 - Daily SpO2 data (optional)
  * @returns {Object} Formatted event {title, description}
  */
-function formatDailyScoreEvent(readiness, stress, dailySleep) {
+function formatDailyScoreEvent(readiness, stress, dailySleep, activity, spo2) {
   const scores = [];
 
   if (readiness && readiness.score) scores.push(`R:${readiness.score}`);
@@ -157,6 +159,35 @@ function formatDailyScoreEvent(readiness, stress, dailySleep) {
     if (stress.day_summary) descriptionParts.push(`Day Summary: ${stress.day_summary}`);
     if (stress.stress_high !== undefined) descriptionParts.push(`Stress High: ${stress.stress_high}`);
     if (stress.recovery_high !== undefined) descriptionParts.push(`Recovery High: ${stress.recovery_high}`);
+  }
+
+  if (activity) {
+    descriptionParts.push('');
+    descriptionParts.push('--- Activity ---');
+    if (activity.score !== undefined) descriptionParts.push(`Activity Score: ${activity.score}`);
+    if (activity.steps !== undefined) descriptionParts.push(`Steps: ${activity.steps.toLocaleString()}`);
+    if (activity.active_calories !== undefined) descriptionParts.push(`Active Calories: ${activity.active_calories} kcal`);
+    if (activity.total_calories !== undefined) descriptionParts.push(`Total Calories: ${activity.total_calories} kcal`);
+    if (activity.target_calories !== undefined) descriptionParts.push(`Target Calories: ${activity.target_calories} kcal`);
+    if (activity.equivalent_walking_distance !== undefined) {
+      descriptionParts.push(`Walking Distance: ${(activity.equivalent_walking_distance / 1000).toFixed(2)} km`);
+    }
+    if (activity.low_activity_time !== undefined) descriptionParts.push(`Low Activity: ${formatDuration(activity.low_activity_time)}`);
+    if (activity.medium_activity_time !== undefined) descriptionParts.push(`Medium Activity: ${formatDuration(activity.medium_activity_time)}`);
+    if (activity.high_activity_time !== undefined) descriptionParts.push(`High Activity: ${formatDuration(activity.high_activity_time)}`);
+    if (activity.sedentary_time !== undefined) descriptionParts.push(`Sedentary Time: ${formatDuration(activity.sedentary_time)}`);
+    if (activity.resting_time !== undefined) descriptionParts.push(`Resting Time: ${formatDuration(activity.resting_time)}`);
+  }
+
+  if (spo2) {
+    descriptionParts.push('');
+    descriptionParts.push('--- SpO2 ---');
+    if (spo2.spo2_percentage && spo2.spo2_percentage.average !== undefined) {
+      descriptionParts.push(`Average: ${spo2.spo2_percentage.average}%`);
+    }
+    if (spo2.breathing_disturbance_index !== undefined) {
+      descriptionParts.push(`Breathing Disturbance Index: ${spo2.breathing_disturbance_index}`);
+    }
   }
 
   return {
