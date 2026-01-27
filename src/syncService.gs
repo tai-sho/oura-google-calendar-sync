@@ -148,18 +148,28 @@ class SyncService {
         logInfo('SpO2 data not available: ' + e.message);
       }
 
+      // Sleep time recommendation
+      let sleepTimeData = [];
+      try {
+        sleepTimeData = this.ouraClient.getSleepTime(startDate, endDate);
+      } catch (e) {
+        logInfo('Sleep time data not available: ' + e.message);
+      }
+
       // Index by day
       const readinessByDay = {};
       const stressByDay = {};
       const dailySleepByDay = {};
       const activityByDay = {};
       const spo2ByDay = {};
+      const sleepTimeByDay = {};
 
       for (const r of readinessData) readinessByDay[r.day] = r;
       for (const s of stressData) stressByDay[s.day] = s;
       for (const ds of dailySleepData) dailySleepByDay[ds.day] = ds;
       for (const a of activityData) activityByDay[a.day] = a;
       for (const sp of spo2Data) spo2ByDay[sp.day] = sp;
+      for (const st of sleepTimeData) sleepTimeByDay[st.day] = st;
 
       // Collect all unique days
       const allDays = new Set([
@@ -167,7 +177,8 @@ class SyncService {
         ...stressData.map(s => s.day),
         ...dailySleepData.map(ds => ds.day),
         ...activityData.map(a => a.day),
-        ...spo2Data.map(sp => sp.day)
+        ...spo2Data.map(sp => sp.day),
+        ...sleepTimeData.map(st => st.day)
       ]);
 
       for (const day of allDays) {
@@ -177,11 +188,12 @@ class SyncService {
           const dailySleep = dailySleepByDay[day];
           const activity = activityByDay[day];
           const spo2 = spo2ByDay[day];
+          const sleepTime = sleepTimeByDay[day];
 
           // Skip if no data
-          if (!readiness && !stress && !dailySleep && !activity && !spo2) continue;
+          if (!readiness && !stress && !dailySleep && !activity && !spo2 && !sleepTime) continue;
 
-          const formatted = formatDailyScoreEvent(readiness, stress, dailySleep, activity, spo2);
+          const formatted = formatDailyScoreEvent(readiness, stress, dailySleep, activity, spo2, sleepTime);
           const ouraId = `daily_score_${day}`;
           const eventDate = new Date(day + 'T00:00:00');
 
@@ -205,6 +217,54 @@ class SyncService {
       }
     } catch (e) {
       logError('syncDailyScoresData', e);
+      throw e;
+    }
+
+    return results;
+  }
+
+  /**
+   * Sync rest mode periods to calendar
+   * @returns {Object} Sync results {created, updated, skipped, errors}
+   */
+  syncRestModeData() {
+    const { startDate, endDate, searchStartDate, searchEndDate } = this._getDateRange();
+    const results = { created: 0, updated: 0, skipped: 0, errors: 0 };
+
+    try {
+      const restModeData = this.ouraClient.getRestModePeriods(startDate, endDate);
+
+      for (const restMode of restModeData) {
+        try {
+          const formatted = formatRestModeEvent(restMode);
+
+          // Parse start and end dates
+          const eventStartDate = new Date(restMode.start_day + 'T00:00:00');
+          // End date needs to be +1 day for Google Calendar's all-day event (exclusive end)
+          const eventEndDate = new Date(restMode.end_day + 'T00:00:00');
+          eventEndDate.setDate(eventEndDate.getDate() + 1);
+
+          const result = this.calendarService.createOrUpdateMultiDayAllDayEvent(
+            restMode.id,
+            formatted.title,
+            eventStartDate,
+            eventEndDate,
+            formatted.description,
+            { color: CalendarApp.EventColor.GRAPE },
+            searchStartDate,
+            searchEndDate
+          );
+
+          if (result === 'created') results.created++;
+          else if (result === 'updated') results.updated++;
+          else results.skipped++;
+        } catch (e) {
+          logError('syncRestModeData:item', e);
+          results.errors++;
+        }
+      }
+    } catch (e) {
+      logError('syncRestModeData', e);
       throw e;
     }
 

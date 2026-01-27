@@ -114,9 +114,10 @@ function formatWorkoutEvent(workout) {
  * @param {Object} dailySleep - Daily sleep data (optional)
  * @param {Object} activity - Daily activity data (optional)
  * @param {Object} spo2 - Daily SpO2 data (optional)
+ * @param {Object} sleepTime - Sleep time recommendation data (optional)
  * @returns {Object} Formatted event {title, description}
  */
-function formatDailyScoreEvent(readiness, stress, dailySleep, activity, spo2) {
+function formatDailyScoreEvent(readiness, stress, dailySleep, activity, spo2, sleepTime) {
   const scores = [];
 
   if (readiness && readiness.score) scores.push(`R:${readiness.score}`);
@@ -187,6 +188,50 @@ function formatDailyScoreEvent(readiness, stress, dailySleep, activity, spo2) {
     }
     if (spo2.breathing_disturbance_index !== undefined) {
       descriptionParts.push(`Breathing Disturbance Index: ${spo2.breathing_disturbance_index}`);
+    }
+  }
+
+  if (sleepTime) {
+    descriptionParts.push('');
+    descriptionParts.push('--- Sleep Time Recommendation ---');
+    if (sleepTime.recommendation !== undefined) {
+      descriptionParts.push(`Recommended: ${formatDuration(sleepTime.recommendation)}`);
+    }
+    if (sleepTime.optimal_bedtime && sleepTime.optimal_bedtime.start) {
+      descriptionParts.push(`Optimal Bedtime: ${sleepTime.optimal_bedtime.start} - ${sleepTime.optimal_bedtime.end}`);
+    }
+  }
+
+  return {
+    title: title,
+    description: descriptionParts.join('\n')
+  };
+}
+
+/**
+ * Format rest mode period event data
+ * @param {Object} restMode - Rest mode period data from Oura API
+ * @returns {Object} Formatted event {title, description}
+ */
+function formatRestModeEvent(restMode) {
+  const title = 'Rest Mode';
+
+  const descriptionParts = [
+    '=== Rest Mode Period ===',
+    `Start: ${restMode.start_day}`,
+    `End: ${restMode.end_day}`
+  ];
+
+  if (restMode.episodes && restMode.episodes.length > 0) {
+    descriptionParts.push('');
+    descriptionParts.push('--- Episodes ---');
+    for (const episode of restMode.episodes) {
+      if (episode.tags && episode.tags.length > 0) {
+        descriptionParts.push(`Tags: ${episode.tags.join(', ')}`);
+      }
+      if (episode.timestamp) {
+        descriptionParts.push(`Timestamp: ${episode.timestamp}`);
+      }
     }
   }
 

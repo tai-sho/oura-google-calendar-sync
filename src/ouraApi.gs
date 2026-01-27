@@ -86,6 +86,26 @@ class OuraApiClient {
   }
 
   /**
+   * Get sleep time recommendations
+   * @param {string} startDate - Start date (YYYY-MM-DD)
+   * @param {string} endDate - End date (YYYY-MM-DD)
+   * @returns {Array} Sleep time data array
+   */
+  getSleepTime(startDate, endDate) {
+    return this._fetch('v2/usercollection/sleep_time', { start_date: startDate, end_date: endDate });
+  }
+
+  /**
+   * Get rest mode periods
+   * @param {string} startDate - Start date (YYYY-MM-DD)
+   * @param {string} endDate - End date (YYYY-MM-DD)
+   * @returns {Array} Rest mode period data array
+   */
+  getRestModePeriods(startDate, endDate) {
+    return this._fetch('v2/usercollection/rest_mode_period', { start_date: startDate, end_date: endDate });
+  }
+
+  /**
    * Internal fetch method
    * @param {string} endpoint - API endpoint
    * @param {Object} params - Query parameters
@@ -109,11 +129,17 @@ class OuraApiClient {
     const responseText = response.getContentText();
 
     if (statusCode === 401) {
-      throw new Error('Oura API authentication failed. Please re-authorize using authorizeOura().');
+      // 401 can mean either auth failed OR endpoint requires subscription/unavailable feature
+      throw new Error('Oura API: Unauthorized (401) - endpoint may require subscription or re-authorization');
     }
 
     if (statusCode === 429) {
       throw new Error('Oura API rate limit exceeded. Please try again later.');
+    }
+
+    if (statusCode === 403) {
+      // 403 typically means the feature is not available for this user
+      throw new Error('Oura API: Forbidden (403) - feature may require Oura membership');
     }
 
     if (statusCode !== 200) {

@@ -168,4 +168,67 @@ class CalendarService {
       return 'created';
     }
   }
+
+  /**
+   * Create a multi-day all-day event
+   * @param {string} title - Event title
+   * @param {Date} startDate - Event start date
+   * @param {Date} endDate - Event end date (exclusive, event ends on this day)
+   * @param {string} description - Event description
+   * @param {Object} options - Additional options (color)
+   * @returns {CalendarEvent} Created event
+   */
+  createMultiDayAllDayEvent(title, startDate, endDate, description, options = {}) {
+    const calendar = this.getCalendar();
+    const event = calendar.createAllDayEvent(title, startDate, endDate, {
+      description: description
+    });
+
+    if (options.color) {
+      event.setColor(options.color);
+    }
+
+    return event;
+  }
+
+  /**
+   * Update a multi-day all-day event
+   * @param {CalendarEvent} event - Event to update
+   * @param {string} title - New title
+   * @param {Date} startDate - New start date
+   * @param {Date} endDate - New end date
+   * @param {string} description - New description
+   * @returns {CalendarEvent} Updated event
+   */
+  updateMultiDayAllDayEvent(event, title, startDate, endDate, description) {
+    event.setTitle(title);
+    event.setAllDayDates(startDate, endDate);
+    event.setDescription(description);
+    return event;
+  }
+
+  /**
+   * Create or update a multi-day all-day event based on Oura ID
+   * @param {string} ouraId - Oura ID
+   * @param {string} title - Event title
+   * @param {Date} startDate - Event start date
+   * @param {Date} endDate - Event end date (exclusive)
+   * @param {string} description - Event description
+   * @param {Object} options - Additional options
+   * @param {Date} searchStartDate - Search start date
+   * @param {Date} searchEndDate - Search end date
+   * @returns {string} Result: 'created' or 'updated'
+   */
+  createOrUpdateMultiDayAllDayEvent(ouraId, title, startDate, endDate, description, options, searchStartDate, searchEndDate) {
+    const descriptionWithId = appendOuraIdToDescription(description, ouraId);
+    const existingEvent = this.findEventByOuraId(ouraId, searchStartDate, searchEndDate);
+
+    if (existingEvent) {
+      this.updateMultiDayAllDayEvent(existingEvent, title, startDate, endDate, descriptionWithId);
+      return 'updated';
+    } else {
+      this.createMultiDayAllDayEvent(title, startDate, endDate, descriptionWithId, options);
+      return 'created';
+    }
+  }
 }

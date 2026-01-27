@@ -116,7 +116,8 @@ function syncOuraToCalendar() {
     const results = {
       sleep: { created: 0, updated: 0, skipped: 0, errors: 0 },
       workouts: { created: 0, updated: 0, skipped: 0, errors: 0 },
-      dailyScores: { created: 0, updated: 0, skipped: 0, errors: 0 }
+      dailyScores: { created: 0, updated: 0, skipped: 0, errors: 0 },
+      restMode: { created: 0, updated: 0, skipped: 0, errors: 0 }
     };
 
     // Sync sleep data
@@ -147,6 +148,16 @@ function syncOuraToCalendar() {
     } catch (e) {
       logError('syncOuraToCalendar:dailyScores', e);
       results.dailyScores.errors++;
+    }
+
+    // Sync rest mode periods
+    try {
+      logInfo('Syncing rest mode periods...');
+      results.restMode = syncService.syncRestModeData();
+      logInfo(`Rest mode sync complete: ${JSON.stringify(results.restMode)}`);
+    } catch (e) {
+      logError('syncOuraToCalendar:restMode', e);
+      results.restMode.errors++;
     }
 
     logInfo(`Sync completed: ${JSON.stringify(results)}`);
@@ -234,6 +245,33 @@ function syncDailyScores() {
     return results;
   } catch (e) {
     logError('syncDailyScores', e);
+    throw e;
+  }
+}
+
+/**
+ * Sync only rest mode periods
+ * @returns {Object} Sync results
+ */
+function syncRestMode() {
+  logInfo('Starting rest mode sync...');
+
+  try {
+    const config = getConfig();
+    validateConfig(config);
+
+    const service = getOuraService();
+    if (!service.hasAccess()) {
+      throw new Error('Not authorized. Run authorizeOura() first.');
+    }
+
+    const syncService = new SyncService(config, service);
+    const results = syncService.syncRestModeData();
+
+    logInfo(`Rest mode sync complete: ${JSON.stringify(results)}`);
+    return results;
+  } catch (e) {
+    logError('syncRestMode', e);
     throw e;
   }
 }
