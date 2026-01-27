@@ -8,7 +8,8 @@ Sync Oura Ring data to Google Calendar using Google Apps Script.
 
 - **Sleep data** - Duration, start/end time, sleep stages, vitals, scores
 - **Workout data** - Activity type, duration, calories, distance
-- **Daily scores** - Readiness, Sleep Score, Stress, Activity, SpO2 (combined in one all-day event)
+- **Daily scores** - Readiness, Sleep Score, Stress, Activity, SpO2, Sleep Time Recommendation (combined in one all-day event)
+- **Rest Mode** - Multi-day all-day event when Rest Mode is enabled
 
 ## Calendar Event Examples
 
@@ -25,6 +26,11 @@ Sync Oura Ring data to Google Calendar using Google Apps Script.
 ### Daily Scores Event (All-day)
 - **Title**: `Oura: R:82 | S:85 | St:restored`
 - **Color**: Green
+
+### Rest Mode Event (Multi-day All-day)
+- **Title**: `Rest Mode`
+- **Duration**: Start day to end day
+- **Color**: Purple (Grape)
 
 ## Setup
 
@@ -109,10 +115,11 @@ In GAS editor: **Project Settings** > **Script Properties**
 
 In GAS editor, run any of these functions:
 
-- `syncOuraToCalendar()` - Sync all data (sleep, workouts, daily scores)
+- `syncOuraToCalendar()` - Sync all data (sleep, workouts, daily scores, rest mode)
 - `syncSleep()` - Sync only sleep data
 - `syncWorkouts()` - Sync only workout data
 - `syncDailyScores()` - Sync only daily scores
+- `syncRestMode()` - Sync only rest mode periods
 
 ### Test Connection
 
