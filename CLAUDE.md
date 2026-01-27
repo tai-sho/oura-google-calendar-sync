@@ -99,3 +99,13 @@ npm run watch  # 変更を監視して自動push
 | OURA_CLIENT_SECRET | Yes | OAuth Client Secret |
 | CALENDAR_ID | Yes | 同期先カレンダーID |
 | SYNC_DAYS | No | 同期日数（デフォルト: 7） |
+
+## 修正時の注意
+
+機能追加や変更を行った際は、必ず**README.md**も併せて更新すること。
+
+更新が必要な箇所:
+- Features セクション（機能一覧）
+- Calendar Event Examples セクション（イベント例）
+- Manual Sync セクション（実行可能な関数一覧）
+- Troubleshooting セクション（必要に応じて）
