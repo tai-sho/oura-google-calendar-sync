@@ -1,0 +1,34 @@
+{
+  "name": "oura-google-calendar-sync",
+  "version": "1.0.0",
+  "description": "Sync Oura Ring data (sleep, workout, scores, stress) to Google Calendar using Google Apps Script",
+  "scripts": {
+    "push": "clasp push",
+    "pull": "clasp pull",
+    "watch": "clasp push --watch",
+    "open": "clasp open",
+    "logs": "clasp logs"
+  },
+  "keywords": [
+    "oura",
+    "oura-ring",
+    "google-calendar",
+    "google-apps-script",
+    "gas",
+    "sleep-tracking",
+    "health"
+  ],
+  "author": "ShoheiTai",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tai-sho/oura-google-calendar-sync.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tai-sho/oura-google-calendar-sync/issues"
+  },
+  "homepage": "https://github.com/tai-sho/oura-google-calendar-sync#readme",
+  "devDependencies": {
+    "@google/clasp": "^3.1.3"
+  }
+}
