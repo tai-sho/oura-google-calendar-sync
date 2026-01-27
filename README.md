@@ -1,5 +1,7 @@
 # oura-google-calendar-sync
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Sync Oura Ring data to Google Calendar using Google Apps Script.
 
 ## Features
