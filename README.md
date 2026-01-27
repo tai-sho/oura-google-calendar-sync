@@ -98,7 +98,7 @@ In GAS editor: **Project Settings** > **Script Properties**
 
 ### Get Calendar ID
 
-- For primary calendar: Use your email address (e.g., `your.email@gmail.com`)
+- For primary calendar: Use your Google account email address
 - For other calendars: Open Google Calendar > Calendar Settings > Calendar ID
 
 ### Authorize Oura
