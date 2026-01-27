@@ -77,7 +77,7 @@ npm run open
 
 ### Create Oura OAuth Application
 
-1. Go to [Oura Developer Portal](https://cloud.ouraring.com/oauth/applications)
+1. Go to [Oura Developer Portal](https://developer.ouraring.com/applications)
 2. Click "New Application"
 3. Fill in the form:
    - **App Name**: Any name (e.g., "My Calendar Sync")
