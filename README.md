@@ -69,11 +69,16 @@ cp .clasp.json.example .clasp.json
 npm run push
 ```
 
-5. Open GAS editor
+5. Deploy as Web App
 
-```bash
-npm run open
-```
+   1. Open GAS editor: `npm run open`
+   2. Click **Deploy** > **New deployment**
+   3. Select type: **Web app**
+   4. Execute as: **Me**
+   5. Who has access: **Only myself**
+   6. Click **Deploy**
+
+   This is required for OAuth2 callback to work.
 
 ### Create Oura OAuth Application
 
