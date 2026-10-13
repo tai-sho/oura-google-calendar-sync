@@ -12,6 +12,8 @@ class CalendarService {
   constructor(calendarId) {
     this.calendarId = calendarId;
     this._calendar = null;
+    // Events of the last searched window, reused while a sync walks its items
+    this._eventCache = null;
   }
 
   /**
@@ -36,10 +38,12 @@ class CalendarService {
    * @returns {CalendarEvent|null} Found event or null
    */
   findEventByOuraId(ouraId, searchStartDate, searchEndDate) {
-    const calendar = this.getCalendar();
-    const events = calendar.getEvents(searchStartDate, searchEndDate);
+    const cacheKey = `${searchStartDate.getTime()}-${searchEndDate.getTime()}`;
+    if (!this._eventCache || this._eventCache.key !== cacheKey) {
+      this._eventCache = { key: cacheKey, events: this.getCalendar().getEvents(searchStartDate, searchEndDate) };
+    }
 
-    for (const event of events) {
+    for (const event of this._eventCache.events) {
       const description = event.getDescription();
       if (extractOuraIdFromDescription(description) === ouraId) {
         return event;
@@ -59,6 +63,7 @@ class CalendarService {
    */
   createEvent(title, startTime, endTime, description, options = {}) {
     const calendar = this.getCalendar();
+    this._eventCache = null;
     const event = calendar.createEvent(title, startTime, endTime, {
       description: description
     });
@@ -77,13 +82,19 @@ class CalendarService {
    * @param {Date} startTime - New start time
    * @param {Date} endTime - New end time
    * @param {string} description - New description
-   * @returns {CalendarEvent} Updated event
+   * @returns {boolean} False if the event already had these values (nothing written)
    */
   updateEvent(event, title, startTime, endTime, description) {
+    if (event.getTitle() === title &&
+        event.getDescription() === description &&
+        event.getStartTime().getTime() === startTime.getTime() &&
+        event.getEndTime().getTime() === endTime.getTime()) {
+      return false;
+    }
     event.setTitle(title);
     event.setTime(startTime, endTime);
     event.setDescription(description);
-    return event;
+    return true;
   }
 
   /**
@@ -96,6 +107,7 @@ class CalendarService {
    */
   createAllDayEvent(title, date, description, options = {}) {
     const calendar = this.getCalendar();
+    this._eventCache = null;
     const event = calendar.createAllDayEvent(title, date, {
       description: description
     });
@@ -112,12 +124,15 @@ class CalendarService {
    * @param {CalendarEvent} event - Event to update
    * @param {string} title - New title
    * @param {string} description - New description
-   * @returns {CalendarEvent} Updated event
+   * @returns {boolean} False if the event already had these values (nothing written)
    */
   updateAllDayEvent(event, title, description) {
+    if (event.getTitle() === title && event.getDescription() === description) {
+      return false;
+    }
     event.setTitle(title);
     event.setDescription(description);
-    return event;
+    return true;
   }
 
   /**
@@ -130,15 +145,14 @@ class CalendarService {
    * @param {Object} options - Additional options
    * @param {Date} searchStartDate - Search start date
    * @param {Date} searchEndDate - Search end date
-   * @returns {string} Result: 'created' or 'updated'
+   * @returns {string} Result: 'created', 'updated' or 'skipped' (unchanged)
    */
   createOrUpdateEvent(ouraId, title, startTime, endTime, description, options, searchStartDate, searchEndDate) {
     const descriptionWithId = appendOuraIdToDescription(description, ouraId);
     const existingEvent = this.findEventByOuraId(ouraId, searchStartDate, searchEndDate);
 
     if (existingEvent) {
-      this.updateEvent(existingEvent, title, startTime, endTime, descriptionWithId);
-      return 'updated';
+      return this.updateEvent(existingEvent, title, startTime, endTime, descriptionWithId) ? 'updated' : 'skipped';
     } else {
       this.createEvent(title, startTime, endTime, descriptionWithId, options);
       return 'created';
@@ -154,15 +168,14 @@ class CalendarService {
    * @param {Object} options - Additional options
    * @param {Date} searchStartDate - Search start date
    * @param {Date} searchEndDate - Search end date
-   * @returns {string} Result: 'created' or 'updated'
+   * @returns {string} Result: 'created', 'updated' or 'skipped' (unchanged)
    */
   createOrUpdateAllDayEvent(ouraId, title, date, description, options, searchStartDate, searchEndDate) {
     const descriptionWithId = appendOuraIdToDescription(description, ouraId);
     const existingEvent = this.findEventByOuraId(ouraId, searchStartDate, searchEndDate);
 
     if (existingEvent) {
-      this.updateAllDayEvent(existingEvent, title, descriptionWithId);
-      return 'updated';
+      return this.updateAllDayEvent(existingEvent, title, descriptionWithId) ? 'updated' : 'skipped';
     } else {
       this.createAllDayEvent(title, date, descriptionWithId, options);
       return 'created';
@@ -180,6 +193,7 @@ class CalendarService {
    */
   createMultiDayAllDayEvent(title, startDate, endDate, description, options = {}) {
     const calendar = this.getCalendar();
+    this._eventCache = null;
     const event = calendar.createAllDayEvent(title, startDate, endDate, {
       description: description
     });
@@ -198,13 +212,20 @@ class CalendarService {
    * @param {Date} startDate - New start date
    * @param {Date} endDate - New end date
    * @param {string} description - New description
-   * @returns {CalendarEvent} Updated event
+   * @returns {boolean} False if the event already had these values (nothing written)
    */
   updateMultiDayAllDayEvent(event, title, startDate, endDate, description) {
+    // getAllDayEndDate() is exclusive, like endDate
+    if (event.getTitle() === title &&
+        event.getDescription() === description &&
+        event.getAllDayStartDate().getTime() === startDate.getTime() &&
+        event.getAllDayEndDate().getTime() === endDate.getTime()) {
+      return false;
+    }
     event.setTitle(title);
     event.setAllDayDates(startDate, endDate);
     event.setDescription(description);
-    return event;
+    return true;
   }
 
   /**
@@ -217,15 +238,14 @@ class CalendarService {
    * @param {Object} options - Additional options
    * @param {Date} searchStartDate - Search start date
    * @param {Date} searchEndDate - Search end date
-   * @returns {string} Result: 'created' or 'updated'
+   * @returns {string} Result: 'created', 'updated' or 'skipped' (unchanged)
    */
   createOrUpdateMultiDayAllDayEvent(ouraId, title, startDate, endDate, description, options, searchStartDate, searchEndDate) {
     const descriptionWithId = appendOuraIdToDescription(description, ouraId);
     const existingEvent = this.findEventByOuraId(ouraId, searchStartDate, searchEndDate);
 
     if (existingEvent) {
-      this.updateMultiDayAllDayEvent(existingEvent, title, startDate, endDate, descriptionWithId);
-      return 'updated';
+      return this.updateMultiDayAllDayEvent(existingEvent, title, startDate, endDate, descriptionWithId) ? 'updated' : 'skipped';
     } else {
       this.createMultiDayAllDayEvent(title, startDate, endDate, descriptionWithId, options);
       return 'created';

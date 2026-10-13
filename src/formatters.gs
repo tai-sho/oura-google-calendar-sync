@@ -219,7 +219,7 @@ function formatRestModeEvent(restMode) {
   const descriptionParts = [
     '=== Rest Mode Period ===',
     `Start: ${restMode.start_day}`,
-    `End: ${restMode.end_day}`
+    `End: ${restMode.end_day || 'ongoing'}`
   ];
 
   if (restMode.episodes && restMode.episodes.length > 0) {
