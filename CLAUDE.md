@@ -104,7 +104,7 @@ All 8 scopes: `email personal daily heartrate workout tag session spo2`
 
 ## Webhook (Real-time Sync)
 
-- Oura webhooks are received by a separate PHP relay: https://github.com/tai-sho/oura-google-calendar-sync-webhook (it verifies signatures, queues, and POSTs batches here every 5 minutes)
+- Oura webhooks are received by an external relay (not part of this repository) that verifies signatures and POSTs batches to `doPost`. Keep this repository's docs generic about the relay: no hosting, language, schedule or repository details
 - `doPost` contract: request `{"secret", "events": [{event_type, data_type, object_id, event_time, user_id}]}`; response is always JSON: `{"ok": true, "results"}` / `{"ok": false, "retry": true}` (lock busy) / `{"ok": false, "error": "auth"}` / `{"ok": false, "error": "..."}`
 - The web app must be deployed as Execute as: Me / Anyone (`appsscript.json`). After `npm run push`, run `npx clasp redeploy <deploymentId>` or the web app keeps serving the old code
 - Concurrency: all syncs run under `withScriptLock_` (script lock), and the OAuth2 service uses `setLock(LockService.getUserLock())` because Oura refresh tokens are single-use

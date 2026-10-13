@@ -1,8 +1,8 @@
 /**
  * Webhook entry point (Apps Script web app)
  *
- * Oura webhooks are received by the relay (oura-google-calendar-sync-webhook),
- * which verifies their signatures and forwards them here in batches:
+ * Oura webhooks are received by an external relay, which verifies their
+ * signatures and forwards them here in batches:
  *
  *   POST {"secret": "...", "events": [{event_type, data_type, object_id, event_time, user_id}, ...]}
  *
@@ -44,7 +44,7 @@ function doPost(e) {
 
     const events = Array.isArray(request.events) ? request.events : [];
     if (events.length === 0) {
-      // Health check from the relay (bin/doctor.php): configuration and Oura authorization
+      // Health check from the relay: configuration and Oura authorization
       createSyncService_();
       return jsonResponse_({ ok: true, results: {} });
     }
