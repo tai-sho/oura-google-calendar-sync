@@ -10,7 +10,7 @@ Sync Oura Ring data to Google Calendar using Google Apps Script.
 - **Workout data** - Activity type, duration, calories, distance
 - **Daily scores** - Readiness, Sleep Score, Stress, Activity, SpO2, Sleep Time Recommendation (combined in one all-day event)
 - **Rest Mode** - Multi-day all-day event when Rest Mode is enabled (shown until today while it is still on)
-- **Real-time sync (optional)** - Oura webhooks update the calendar within minutes via [oura-google-calendar-sync-webhook](https://github.com/tai-sho/oura-google-calendar-sync-webhook)
+- **Real-time sync (optional)** - Oura webhook events, forwarded by a relay you host, re-sync only the affected data (see [Webhook](#webhook-real-time-sync))
 
 ## Calendar Event Examples
 
@@ -147,10 +147,10 @@ Keep the daily trigger even when using webhooks: it re-syncs the last `SYNC_DAYS
 
 ### Webhook (real-time sync)
 
-Apps Script cannot verify Oura's webhook signatures (no access to HTTP headers), so webhooks are received by a small relay, [oura-google-calendar-sync-webhook](https://github.com/tai-sho/oura-google-calendar-sync-webhook), running on a PHP server. The relay forwards verified events here in batches, and this project re-syncs only the affected data types and dates.
+Apps Script cannot receive Oura webhooks directly: `doPost` has no access to HTTP headers (so the `x-oura-signature` cannot be verified) and Oura expects an answer within 10 seconds. Webhooks therefore have to be received by a relay you host on an HTTPS server. The relay verifies the signature, answers Oura, and forwards the events to this project's web app in batches; this project then re-syncs only the affected data types and dates.
 
 ```
-Oura -> relay (verify, queue) -> cron every 5 min -> doPost (this project) -> Google Calendar
+Oura -> your relay (verify signature, answer Oura) -> doPost (this project) -> Google Calendar
 ```
 
 1. Generate a secret and save it as the Script Property `WEBHOOK_SHARED_SECRET`
@@ -168,7 +168,7 @@ npx clasp deploy --description "webhook"
 
    The manifest deploys it as **Execute as: Me** / **Who has access: Anyone**. Note the deployment ID; the web app URL is `https://script.google.com/macros/s/<deploymentId>/exec`.
 
-3. Configure the relay with that URL and secret (`GAS_WEBAPP_URL`, `GAS_SHARED_SECRET`) and follow its README to subscribe to Oura webhooks.
+3. Point your relay at that URL with the same secret (see [Relay contract](#relay-contract)), and subscribe it to Oura webhooks for the data types below.
 
 4. Updating the code later: `npm run push` alone does **not** update the web app. Redeploy the same deployment so the URL stays the same:
 
@@ -188,6 +188,25 @@ What a webhook event syncs:
 | `rest_mode_period` | Rest mode | Last 60 days |
 
 `delete` events are only logged for now.
+
+#### Relay contract
+
+Request: `POST` the web app URL with a JSON body, and follow the redirect Apps Script answers with (as a `GET`):
+
+```json
+{"secret": "<WEBHOOK_SHARED_SECRET>", "events": [{"event_type": "update", "data_type": "sleep", "object_id": "...", "event_time": "2026-01-01T07:30:00+09:00", "user_id": "..."}]}
+```
+
+The events are Oura's webhook payloads as received. An empty `events` array is a health check (it validates the configuration and the Oura authorization).
+
+Responses (always JSON):
+
+| Response | Meaning | Relay should |
+|---|---|---|
+| `{"ok": true, "results": {...}}` | Processed | Mark the events done |
+| `{"ok": false, "retry": true}` | Another sync holds the lock | Retry later |
+| `{"ok": false, "error": "auth"}` | Secret mismatch | Fix the configuration |
+| `{"ok": false, "error": "..."}` | Processing error | Retry later (processing is idempotent) |
 
 ### npm Scripts
 
@@ -234,10 +253,10 @@ SpO2 data requires an active Oura membership and may not be available for all us
 ### "Another sync is running. Skipped this run."
 The daily trigger found a webhook sync (or a manual run) holding the script lock for more than 2 minutes. The next webhook or daily run catches up.
 
-### Webhook relay reports "GAS rejected the shared secret"
-`WEBHOOK_SHARED_SECRET` in Script Properties differs from `GAS_SHARED_SECRET` on the relay.
+### Webhook relay gets `{"ok": false, "error": "auth"}`
+The secret sent by the relay differs from `WEBHOOK_SHARED_SECRET` in Script Properties.
 
-### Webhook relay reports a non-JSON response
+### Webhook relay gets a non-JSON response
 The web app is not deployed (or not as "Anyone"), or the code was pushed without redeploying. Redeploy the existing deployment with `npx clasp redeploy <deploymentId>`.
 
 ## License
