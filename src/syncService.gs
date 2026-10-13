@@ -18,10 +18,11 @@ class SyncService {
 
   /**
    * Sync sleep data to calendar
+   * @param {Object} [range] - Date range {startDate, endDate} (YYYY-MM-DD). Defaults to the last SYNC_DAYS days
    * @returns {Object} Sync results {created, updated, skipped, errors}
    */
-  syncSleepData() {
-    const { startDate, endDate, searchStartDate, searchEndDate } = this._getDateRange();
+  syncSleepData(range) {
+    const { startDate, endDate, searchStartDate, searchEndDate } = this._getDateRange(range);
     const results = { created: 0, updated: 0, skipped: 0, errors: 0 };
 
     try {
@@ -77,10 +78,11 @@ class SyncService {
 
   /**
    * Sync workout data to calendar
+   * @param {Object} [range] - Date range {startDate, endDate} (YYYY-MM-DD). Defaults to the last SYNC_DAYS days
    * @returns {Object} Sync results {created, updated, skipped, errors}
    */
-  syncWorkoutData() {
-    const { startDate, endDate, searchStartDate, searchEndDate } = this._getDateRange();
+  syncWorkoutData(range) {
+    const { startDate, endDate, searchStartDate, searchEndDate } = this._getDateRange(range);
     const results = { created: 0, updated: 0, skipped: 0, errors: 0 };
 
     try {
@@ -128,10 +130,11 @@ class SyncService {
 
   /**
    * Sync daily scores data to calendar
+   * @param {Object} [range] - Date range {startDate, endDate} (YYYY-MM-DD). Defaults to the last SYNC_DAYS days
    * @returns {Object} Sync results {created, updated, skipped, errors}
    */
-  syncDailyScoresData() {
-    const { startDate, endDate, searchStartDate, searchEndDate } = this._getDateRange();
+  syncDailyScoresData(range) {
+    const { startDate, endDate, searchStartDate, searchEndDate } = this._getDateRange(range);
     const results = { created: 0, updated: 0, skipped: 0, errors: 0 };
 
     try {
@@ -225,10 +228,11 @@ class SyncService {
 
   /**
    * Sync rest mode periods to calendar
+   * @param {Object} [range] - Date range {startDate, endDate} (YYYY-MM-DD). Defaults to the last SYNC_DAYS days
    * @returns {Object} Sync results {created, updated, skipped, errors}
    */
-  syncRestModeData() {
-    const { startDate, endDate, searchStartDate, searchEndDate } = this._getDateRange();
+  syncRestModeData(range) {
+    const { startDate, endDate, searchStartDate, searchEndDate } = this._getDateRange(range);
     const results = { created: 0, updated: 0, skipped: 0, errors: 0 };
 
     try {
@@ -239,9 +243,11 @@ class SyncService {
           const formatted = formatRestModeEvent(restMode);
 
           // Parse start and end dates
-          const eventStartDate = new Date(restMode.start_day + 'T00:00:00');
+          const eventStartDate = parseApiDate(restMode.start_day);
+          // end_day is null while rest mode is still on: show it until today
+          // (webhook updates extend the event as the period continues)
+          const eventEndDate = parseApiDate(restMode.end_day || formatDateForApi(new Date()));
           // End date needs to be +1 day for Google Calendar's all-day event (exclusive end)
-          const eventEndDate = new Date(restMode.end_day + 'T00:00:00');
           eventEndDate.setDate(eventEndDate.getDate() + 1);
 
           const result = this.calendarService.createOrUpdateMultiDayAllDayEvent(
@@ -273,10 +279,18 @@ class SyncService {
 
   /**
    * Calculate date range for sync
+   * @param {Object} [range] - Explicit date range {startDate, endDate} (YYYY-MM-DD)
    * @returns {Object} Date range {startDate, endDate, searchStartDate, searchEndDate}
    * @private
    */
-  _getDateRange() {
+  _getDateRange(range) {
+    if (range) {
+      // Calendar search window: one day before the start to the end of the day after endDate
+      const searchStartDate = parseApiDate(addDaysToApiDate(range.startDate, -1));
+      const searchEndDate = parseApiDate(addDaysToApiDate(range.endDate, 2));
+      return { startDate: range.startDate, endDate: range.endDate, searchStartDate, searchEndDate };
+    }
+
     const now = new Date();
     const endDate = formatDateForApi(now);
 

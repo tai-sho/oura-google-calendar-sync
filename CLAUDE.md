@@ -28,7 +28,8 @@ Testing is done by manually running functions in the GAS editor.
 | config.gs | Configuration management, constants |
 | ouraApi.gs | Oura API client |
 | calendarService.gs | Google Calendar operations, duplicate detection |
-| syncService.gs | Sync logic |
+| syncService.gs | Sync logic (optional explicit date range) |
+| webhook.gs | `doPost` for the webhook relay, data_type → sync mapping |
 | formatters.gs | Event title and description formatting |
 | utils.gs | Common utilities |
 
@@ -99,6 +100,16 @@ All 8 scopes: `email personal daily heartrate workout tag session spo2`
 | OURA_CLIENT_SECRET | Yes | OAuth Client Secret |
 | CALENDAR_ID | Yes | Target Google Calendar ID |
 | SYNC_DAYS | No | Number of days to sync (default: 7) |
+| WEBHOOK_SHARED_SECRET | Webhook only | Shared secret with the webhook relay |
+
+## Webhook (Real-time Sync)
+
+- Oura webhooks are received by a separate PHP relay: https://github.com/tai-sho/oura-google-calendar-sync-webhook (it verifies signatures, queues, and POSTs batches here every 5 minutes)
+- `doPost` contract: request `{"secret", "events": [{event_type, data_type, object_id, event_time, user_id}]}`; response is always JSON: `{"ok": true, "results"}` / `{"ok": false, "retry": true}` (lock busy) / `{"ok": false, "error": "auth"}` / `{"ok": false, "error": "..."}`
+- The web app must be deployed as Execute as: Me / Anyone (`appsscript.json`). After `npm run push`, run `npx clasp redeploy <deploymentId>` or the web app keeps serving the old code
+- Concurrency: all syncs run under `withScriptLock_` (script lock), and the OAuth2 service uses `setLock(LockService.getUserLock())` because Oura refresh tokens are single-use
+- Calendar update methods skip writes when nothing changed (`'skipped'`)
+- Functions ending with `_` are private helpers (hidden from the GAS editor's Run menu)
 
 ## Modification Guidelines
 
@@ -108,4 +119,5 @@ Sections that may need updates:
 - Features section (feature list)
 - Calendar Event Examples section (event examples)
 - Manual Sync section (available functions)
+- Webhook section (data_type → sync mapping, deployment)
 - Troubleshooting section (if applicable)
