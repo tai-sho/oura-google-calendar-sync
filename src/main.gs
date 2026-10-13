@@ -21,6 +21,9 @@ function getOuraService() {
     .setClientSecret(config.ouraClientSecret)
     .setCallbackFunction('authCallback')
     .setPropertyStore(PropertiesService.getUserProperties())
+    // Oura refresh tokens are single-use: serialize refreshes across executions
+    // (daily trigger, webhook, manual runs) so that no two use the same token
+    .setLock(LockService.getUserLock())
     .setScope(OURA_OAUTH.SCOPES.join(' '));
 }
 
@@ -95,23 +98,79 @@ function logoutOura() {
 // ============================================
 
 /**
+ * Thrown when the script lock could not be acquired in time
+ */
+class LockBusyError extends Error {
+  constructor(message) {
+    super(message || 'Another sync is running');
+    this.name = 'LockBusyError';
+  }
+}
+
+/**
+ * Run a function while holding the script lock, so that concurrent executions
+ * (daily trigger, webhook, manual runs) never create the same calendar event twice
+ * @param {Function} fn - Function to run
+ * @param {number} timeoutMs - How long to wait for the lock
+ * @returns {*} Return value of fn
+ * @throws {LockBusyError} If the lock could not be acquired
+ */
+function withScriptLock_(fn, timeoutMs) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(timeoutMs)) {
+    throw new LockBusyError();
+  }
+  try {
+    return fn();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Create a SyncService after validating configuration and authorization
+ * @returns {SyncService} Sync service
+ */
+function createSyncService_() {
+  const config = getConfig();
+  validateConfig(config);
+
+  // Check OAuth2 authorization
+  const service = getOuraService();
+  if (!service.hasAccess()) {
+    const lastError = service.getLastError();
+    throw new Error('Not authorized. Run authorizeOura() first.' + (lastError ? ` (${lastError})` : ''));
+  }
+
+  return new SyncService(config, service);
+}
+
+/**
  * Main entry point - sync all Oura data to Google Calendar
- * @returns {Object} Sync results for each data type
+ * Skips (returns null) if another sync keeps running, e.g. a webhook sync
+ * @returns {Object|null} Sync results for each data type
  */
 function syncOuraToCalendar() {
+  try {
+    return withScriptLock_(syncAllData_, LOCK_TIMEOUTS.SYNC_MS);
+  } catch (e) {
+    if (e instanceof LockBusyError) {
+      logInfo('Another sync is running. Skipped this run.');
+      return null;
+    }
+    throw e;
+  }
+}
+
+/**
+ * Sync all data types for the last SYNC_DAYS days (caller holds the script lock)
+ * @returns {Object} Sync results for each data type
+ */
+function syncAllData_() {
   logInfo('Starting Oura to Calendar sync...');
 
   try {
-    const config = getConfig();
-    validateConfig(config);
-
-    // Check OAuth2 authorization
-    const service = getOuraService();
-    if (!service.hasAccess()) {
-      throw new Error('Not authorized. Run authorizeOura() first.');
-    }
-
-    const syncService = new SyncService(config, service);
+    const syncService = createSyncService_();
 
     const results = {
       sleep: { created: 0, updated: 0, skipped: 0, errors: 0 },
@@ -169,30 +228,30 @@ function syncOuraToCalendar() {
 }
 
 /**
+ * Run a single sync under the script lock
+ * @param {string} label - Label for logs (e.g. 'Sleep')
+ * @param {Function} syncFn - Receives a SyncService and returns sync results
+ * @returns {Object} Sync results
+ */
+function runSingleSync_(label, syncFn) {
+  logInfo(`Starting ${label.toLowerCase()} sync...`);
+
+  try {
+    const results = withScriptLock_(() => syncFn(createSyncService_()), LOCK_TIMEOUTS.SYNC_MS);
+    logInfo(`${label} sync complete: ${JSON.stringify(results)}`);
+    return results;
+  } catch (e) {
+    logError(`sync:${label}`, e);
+    throw e;
+  }
+}
+
+/**
  * Sync only sleep data
  * @returns {Object} Sync results
  */
 function syncSleep() {
-  logInfo('Starting sleep sync...');
-
-  try {
-    const config = getConfig();
-    validateConfig(config);
-
-    const service = getOuraService();
-    if (!service.hasAccess()) {
-      throw new Error('Not authorized. Run authorizeOura() first.');
-    }
-
-    const syncService = new SyncService(config, service);
-    const results = syncService.syncSleepData();
-
-    logInfo(`Sleep sync complete: ${JSON.stringify(results)}`);
-    return results;
-  } catch (e) {
-    logError('syncSleep', e);
-    throw e;
-  }
+  return runSingleSync_('Sleep', syncService => syncService.syncSleepData());
 }
 
 /**
@@ -200,26 +259,7 @@ function syncSleep() {
  * @returns {Object} Sync results
  */
 function syncWorkouts() {
-  logInfo('Starting workout sync...');
-
-  try {
-    const config = getConfig();
-    validateConfig(config);
-
-    const service = getOuraService();
-    if (!service.hasAccess()) {
-      throw new Error('Not authorized. Run authorizeOura() first.');
-    }
-
-    const syncService = new SyncService(config, service);
-    const results = syncService.syncWorkoutData();
-
-    logInfo(`Workout sync complete: ${JSON.stringify(results)}`);
-    return results;
-  } catch (e) {
-    logError('syncWorkouts', e);
-    throw e;
-  }
+  return runSingleSync_('Workout', syncService => syncService.syncWorkoutData());
 }
 
 /**
@@ -227,26 +267,7 @@ function syncWorkouts() {
  * @returns {Object} Sync results
  */
 function syncDailyScores() {
-  logInfo('Starting daily scores sync...');
-
-  try {
-    const config = getConfig();
-    validateConfig(config);
-
-    const service = getOuraService();
-    if (!service.hasAccess()) {
-      throw new Error('Not authorized. Run authorizeOura() first.');
-    }
-
-    const syncService = new SyncService(config, service);
-    const results = syncService.syncDailyScoresData();
-
-    logInfo(`Daily scores sync complete: ${JSON.stringify(results)}`);
-    return results;
-  } catch (e) {
-    logError('syncDailyScores', e);
-    throw e;
-  }
+  return runSingleSync_('Daily scores', syncService => syncService.syncDailyScoresData());
 }
 
 /**
@@ -254,26 +275,7 @@ function syncDailyScores() {
  * @returns {Object} Sync results
  */
 function syncRestMode() {
-  logInfo('Starting rest mode sync...');
-
-  try {
-    const config = getConfig();
-    validateConfig(config);
-
-    const service = getOuraService();
-    if (!service.hasAccess()) {
-      throw new Error('Not authorized. Run authorizeOura() first.');
-    }
-
-    const syncService = new SyncService(config, service);
-    const results = syncService.syncRestModeData();
-
-    logInfo(`Rest mode sync complete: ${JSON.stringify(results)}`);
-    return results;
-  } catch (e) {
-    logError('syncRestMode', e);
-    throw e;
-  }
+  return runSingleSync_('Rest mode', syncService => syncService.syncRestModeData());
 }
 
 // ============================================
