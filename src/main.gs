@@ -146,6 +146,17 @@ function createSyncService_() {
 }
 
 /**
+ * Syncs in execution order. Shared by the full sync and the webhook path.
+ * run(syncService, range) - range is optional ({startDate, endDate}, YYYY-MM-DD)
+ */
+const SYNC_RUNNERS = [
+  { name: 'sleep', label: 'Sleep', run: (syncService, range) => syncService.syncSleepData(range) },
+  { name: 'workouts', label: 'Workout', run: (syncService, range) => syncService.syncWorkoutData(range) },
+  { name: 'dailyScores', label: 'Daily scores', run: (syncService, range) => syncService.syncDailyScoresData(range) },
+  { name: 'restMode', label: 'Rest mode', run: (syncService, range) => syncService.syncRestModeData(range) }
+];
+
+/**
  * Main entry point - sync all Oura data to Google Calendar
  * Skips (returns null) if another sync keeps running, e.g. a webhook sync
  * @returns {Object|null} Sync results for each data type
@@ -172,51 +183,17 @@ function syncAllData_() {
   try {
     const syncService = createSyncService_();
 
-    const results = {
-      sleep: { created: 0, updated: 0, skipped: 0, errors: 0 },
-      workouts: { created: 0, updated: 0, skipped: 0, errors: 0 },
-      dailyScores: { created: 0, updated: 0, skipped: 0, errors: 0 },
-      restMode: { created: 0, updated: 0, skipped: 0, errors: 0 }
-    };
+    const results = {};
 
-    // Sync sleep data
-    try {
-      logInfo('Syncing sleep data...');
-      results.sleep = syncService.syncSleepData();
-      logInfo(`Sleep sync complete: ${JSON.stringify(results.sleep)}`);
-    } catch (e) {
-      logError('syncOuraToCalendar:sleep', e);
-      results.sleep.errors++;
-    }
-
-    // Sync workout data
-    try {
-      logInfo('Syncing workout data...');
-      results.workouts = syncService.syncWorkoutData();
-      logInfo(`Workout sync complete: ${JSON.stringify(results.workouts)}`);
-    } catch (e) {
-      logError('syncOuraToCalendar:workouts', e);
-      results.workouts.errors++;
-    }
-
-    // Sync daily scores
-    try {
-      logInfo('Syncing daily scores...');
-      results.dailyScores = syncService.syncDailyScoresData();
-      logInfo(`Daily scores sync complete: ${JSON.stringify(results.dailyScores)}`);
-    } catch (e) {
-      logError('syncOuraToCalendar:dailyScores', e);
-      results.dailyScores.errors++;
-    }
-
-    // Sync rest mode periods
-    try {
-      logInfo('Syncing rest mode periods...');
-      results.restMode = syncService.syncRestModeData();
-      logInfo(`Rest mode sync complete: ${JSON.stringify(results.restMode)}`);
-    } catch (e) {
-      logError('syncOuraToCalendar:restMode', e);
-      results.restMode.errors++;
+    for (const runner of SYNC_RUNNERS) {
+      try {
+        logInfo(`Syncing ${runner.label.toLowerCase()}...`);
+        results[runner.name] = runner.run(syncService);
+        logInfo(`${runner.label} sync complete: ${JSON.stringify(results[runner.name])}`);
+      } catch (e) {
+        logError(`syncOuraToCalendar:${runner.name}`, e);
+        results[runner.name] = { created: 0, updated: 0, skipped: 0, errors: 1 };
+      }
     }
 
     logInfo(`Sync completed: ${JSON.stringify(results)}`);

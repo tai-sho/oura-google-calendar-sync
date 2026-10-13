@@ -29,16 +29,6 @@ const WEBHOOK_SYNC_TARGETS = {
 };
 
 /**
- * Sync runners in execution order
- */
-const WEBHOOK_SYNC_RUNNERS = [
-  { name: 'sleep', run: (syncService, range) => syncService.syncSleepData(range) },
-  { name: 'workouts', run: (syncService, range) => syncService.syncWorkoutData(range) },
-  { name: 'dailyScores', run: (syncService, range) => syncService.syncDailyScoresData(range) },
-  { name: 'restMode', run: (syncService, range) => syncService.syncRestModeData(range) }
-];
-
-/**
  * Web app POST handler
  * @param {Object} e - Apps Script event object
  * @returns {TextOutput} JSON response
@@ -48,13 +38,14 @@ function doPost(e) {
     const request = JSON.parse((e && e.postData && e.postData.contents) || '{}');
 
     if (!isValidWebhookSecret_(request.secret)) {
-      logError('doPost', new Error('Invalid webhook secret'));
+      logInfo('Webhook: rejected request with an invalid secret');
       return jsonResponse_({ ok: false, error: 'auth' });
     }
 
     const events = Array.isArray(request.events) ? request.events : [];
     if (events.length === 0) {
-      // Health check from the relay (bin/doctor.php)
+      // Health check from the relay (bin/doctor.php): configuration and Oura authorization
+      createSyncService_();
       return jsonResponse_({ ok: true, results: {} });
     }
 
@@ -78,14 +69,14 @@ function doPost(e) {
  */
 function processWebhookEvents(events) {
   logInfo(`Webhook: received ${events.length} event(s): ` +
-    events.map(event => `${event.event_type}:${event.data_type}`).join(', '));
+    events.map(event => (event ? `${event.event_type}:${event.data_type}` : String(event))).join(', '));
 
   const ranges = buildWebhookSyncRanges_(events);
   const results = {};
   const failures = [];
   let syncService = null;
 
-  for (const runner of WEBHOOK_SYNC_RUNNERS) {
+  for (const runner of SYNC_RUNNERS) {
     const range = ranges[runner.name];
     if (!range) continue;
 
