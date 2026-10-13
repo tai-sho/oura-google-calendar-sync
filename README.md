@@ -9,7 +9,8 @@ Sync Oura Ring data to Google Calendar using Google Apps Script.
 - **Sleep data** - Duration, start/end time, sleep stages, vitals, scores
 - **Workout data** - Activity type, duration, calories, distance
 - **Daily scores** - Readiness, Sleep Score, Stress, Activity, SpO2, Sleep Time Recommendation (combined in one all-day event)
-- **Rest Mode** - Multi-day all-day event when Rest Mode is enabled
+- **Rest Mode** - Multi-day all-day event when Rest Mode is enabled (shown until today while it is still on)
+- **Real-time sync (optional)** - Oura webhooks update the calendar within minutes via [oura-google-calendar-sync-webhook](https://github.com/tai-sho/oura-google-calendar-sync-webhook)
 
 ## Calendar Event Examples
 
@@ -95,6 +96,7 @@ In GAS editor: **Project Settings** > **Script Properties**
 | `OURA_CLIENT_SECRET` | Yes | Your Oura OAuth Client Secret |
 | `CALENDAR_ID` | Yes | Target Google Calendar ID |
 | `SYNC_DAYS` | No | Number of days to sync (default: 7) |
+| `WEBHOOK_SHARED_SECRET` | Webhook only | Shared secret with the webhook relay (see [Webhook](#webhook-real-time-sync)) |
 
 ### Get Calendar ID
 
@@ -120,6 +122,9 @@ In GAS editor, run any of these functions:
 - `syncWorkouts()` - Sync only workout data
 - `syncDailyScores()` - Sync only daily scores
 - `syncRestMode()` - Sync only rest mode periods
+- `testProcessWebhookEvents()` - Run the webhook sync path for today's sleep and readiness
+
+Syncs hold a script lock, so manual runs, the daily trigger and webhook syncs never write the same events at the same time. Events whose title, description and time are unchanged are skipped.
 
 ### Test Connection
 
@@ -137,6 +142,52 @@ In GAS editor, run any of these functions:
 Run `setupDailyTrigger()` to set up automatic daily sync at 8:00 AM.
 
 To remove the trigger, run `removeTriggers()`.
+
+Keep the daily trigger even when using webhooks: it re-syncs the last `SYNC_DAYS` days and catches anything a webhook missed. If a webhook sync is running at that moment, the daily run waits up to 2 minutes and is otherwise skipped.
+
+### Webhook (real-time sync)
+
+Apps Script cannot verify Oura's webhook signatures (no access to HTTP headers), so webhooks are received by a small relay, [oura-google-calendar-sync-webhook](https://github.com/tai-sho/oura-google-calendar-sync-webhook), running on a PHP server. The relay forwards verified events here in batches, and this project re-syncs only the affected data types and dates.
+
+```
+Oura -> relay (verify, queue) -> cron every 5 min -> doPost (this project) -> Google Calendar
+```
+
+1. Generate a secret and save it as the Script Property `WEBHOOK_SHARED_SECRET`
+
+```bash
+openssl rand -hex 32
+```
+
+2. Deploy the web app (first time)
+
+```bash
+npm run push
+npx clasp deploy --description "webhook"
+```
+
+   The manifest deploys it as **Execute as: Me** / **Who has access: Anyone**. Note the deployment ID; the web app URL is `https://script.google.com/macros/s/<deploymentId>/exec`.
+
+3. Configure the relay with that URL and secret (`GAS_WEBAPP_URL`, `GAS_SHARED_SECRET`) and follow its README to subscribe to Oura webhooks.
+
+4. Updating the code later: `npm run push` alone does **not** update the web app. Redeploy the same deployment so the URL stays the same:
+
+```bash
+npm run push
+npx clasp redeploy <deploymentId> --description "webhook"
+```
+
+What a webhook event syncs:
+
+| Oura data_type | Sync | Dates |
+|---|---|---|
+| `sleep` | Sleep | Event date -2 to +1 day |
+| `daily_sleep` | Sleep and daily scores | Event date -2 to +1 day |
+| `daily_readiness`, `daily_activity`, `daily_stress`, `daily_spo2`, `sleep_time` | Daily scores | Event date -2 to +1 day |
+| `workout` | Workouts | Event date -2 to +1 day |
+| `rest_mode_period` | Rest mode | Last 60 days |
+
+`delete` events are only logged for now.
 
 ### npm Scripts
 
@@ -158,6 +209,7 @@ src/
 ├── ouraApi.gs           # Oura API client
 ├── calendarService.gs   # Google Calendar operations
 ├── syncService.gs       # Sync logic
+├── webhook.gs           # Web app entry point for the webhook relay (doPost)
 ├── formatters.gs        # Event formatting
 └── utils.gs             # Utility functions
 ```
@@ -178,6 +230,15 @@ Your OAuth token may have expired. Run `logoutOura()` then `authorizeOura()` to 
 
 ### SpO2 data not showing
 SpO2 data requires an active Oura membership and may not be available for all users.
+
+### "Another sync is running. Skipped this run."
+The daily trigger found a webhook sync (or a manual run) holding the script lock for more than 2 minutes. The next webhook or daily run catches up.
+
+### Webhook relay reports "GAS rejected the shared secret"
+`WEBHOOK_SHARED_SECRET` in Script Properties differs from `GAS_SHARED_SECRET` on the relay.
+
+### Webhook relay reports a non-JSON response
+The web app is not deployed (or not as "Anyone"), or the code was pushed without redeploying. Redeploy the existing deployment with `npx clasp redeploy <deploymentId>`.
 
 ## License
 

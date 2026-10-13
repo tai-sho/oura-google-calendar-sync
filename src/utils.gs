@@ -25,6 +25,28 @@ function formatDateForApi(date) {
 }
 
 /**
+ * Parse an API date string (YYYY-MM-DD) as local midnight in the script time zone
+ * (new Date('YYYY-MM-DD') would be parsed as UTC)
+ * @param {string} dateString - Date string (YYYY-MM-DD)
+ * @returns {Date} Date object
+ */
+function parseApiDate(dateString) {
+  return new Date(dateString + 'T00:00:00');
+}
+
+/**
+ * Add days to an API date string
+ * @param {string} dateString - Date string (YYYY-MM-DD)
+ * @param {number} days - Number of days to add (negative to subtract)
+ * @returns {string} Date string (YYYY-MM-DD)
+ */
+function addDaysToApiDate(dateString, days) {
+  const date = parseApiDate(dateString);
+  date.setDate(date.getDate() + days);
+  return formatDateForApi(date);
+}
+
+/**
  * Format duration in seconds to human readable string
  * @param {number} seconds - Duration in seconds
  * @returns {string} Formatted duration (e.g., "7h 30m")
