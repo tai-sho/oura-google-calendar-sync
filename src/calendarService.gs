@@ -12,6 +12,8 @@ class CalendarService {
   constructor(calendarId) {
     this.calendarId = calendarId;
     this._calendar = null;
+    // Events of the last searched window, reused while a sync walks its items
+    this._eventCache = null;
   }
 
   /**
@@ -36,10 +38,12 @@ class CalendarService {
    * @returns {CalendarEvent|null} Found event or null
    */
   findEventByOuraId(ouraId, searchStartDate, searchEndDate) {
-    const calendar = this.getCalendar();
-    const events = calendar.getEvents(searchStartDate, searchEndDate);
+    const cacheKey = `${searchStartDate.getTime()}-${searchEndDate.getTime()}`;
+    if (!this._eventCache || this._eventCache.key !== cacheKey) {
+      this._eventCache = { key: cacheKey, events: this.getCalendar().getEvents(searchStartDate, searchEndDate) };
+    }
 
-    for (const event of events) {
+    for (const event of this._eventCache.events) {
       const description = event.getDescription();
       if (extractOuraIdFromDescription(description) === ouraId) {
         return event;
@@ -59,6 +63,7 @@ class CalendarService {
    */
   createEvent(title, startTime, endTime, description, options = {}) {
     const calendar = this.getCalendar();
+    this._eventCache = null;
     const event = calendar.createEvent(title, startTime, endTime, {
       description: description
     });
@@ -102,6 +107,7 @@ class CalendarService {
    */
   createAllDayEvent(title, date, description, options = {}) {
     const calendar = this.getCalendar();
+    this._eventCache = null;
     const event = calendar.createAllDayEvent(title, date, {
       description: description
     });
@@ -187,6 +193,7 @@ class CalendarService {
    */
   createMultiDayAllDayEvent(title, startDate, endDate, description, options = {}) {
     const calendar = this.getCalendar();
+    this._eventCache = null;
     const event = calendar.createAllDayEvent(title, startDate, endDate, {
       description: description
     });
